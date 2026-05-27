@@ -100,3 +100,10 @@ MonoBehaviour:
     maxCount: 20
     offset: {x: 0, y: 0.25, z: 0}
     randomRotation: 0
+  - prefab: {fileID: 1917795962521268346, guid: 8210fda4a3baecf4aa1584ae2d26b17f, type: 3}
+    positionType: 0
+    spawnProbability: 0.6
+    minCount: 3
+    maxCount: 6
+    offset: {x: 0, y: 2.8, z: 0}
+    randomRotation: 0

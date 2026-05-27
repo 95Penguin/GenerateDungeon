@@ -9,6 +9,7 @@ public class GenerateDungeon : MonoBehaviour
     [Header("门预制体对齐微调")]
     public Vector3 doorPositionOffset = Vector3.zero;      // 位置微调 (X, Y, Z)
     public Vector3 doorRotationOffset = new Vector3(0, -90, 0); // 旋转微调，通常是 (0, 90, 0) 或 (0, -90, 0)
+    public float doorWidthMultiplier = 1.0f;               // 新增：门体宽度整体比例缩放（用于消除与墙壁接缝的缝隙）
 
     // 记录本房间所有已启用的门点位置（世界坐标），用于避开道具生成
     [HideInInspector]
@@ -68,15 +69,23 @@ public class GenerateDungeon : MonoBehaviour
                 Vector3 pos = matrix.GetPosition();
                 Quaternion rot = matrix.rotation;
 
-                // 1. 计算微调后的旋转（叠加旋转偏移）
+                // ─── 1. 新增：获取当前拱门网格在生成时的实际水平缩放比例 ───
+                float wallScaleX = matrix.GetColumn(0).magnitude;
+
+                // 2. 计算微调后的旋转（叠加旋转偏移）
                 Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
 
-                // 2. 计算微调后的位置（确保位置偏移会随着门的方向自动旋转）
+                // 3. 计算微调后的位置（确保位置偏移会随着门的方向自动旋转）
                 Vector3 finalPos = pos + (rot * doorPositionOffset);
 
-                // 3. 实例化门
+                // 4. 实例化门
                 GameObject doorInstance = Instantiate(doorPrefab, finalPos, finalRot, transform);
                 doorInstance.name = "ArchwayDoor";
+
+                // ─── 5. 新增：让门继承拱门的水平缩放，确保完美塞满门框，不留缝隙 ───
+                // ─── 修改：将自适应缩放乘上宽度补偿系数 ───
+                float finalScale = wallScaleX * doorWidthMultiplier;
+                doorInstance.transform.localScale = new Vector3(wallScaleX, 1f, wallScaleX);
 
                 if (doorInstance.GetComponent<InteractiveDoor>() == null)
                     doorInstance.AddComponent<InteractiveDoor>();
@@ -466,7 +475,7 @@ public class GenerateDungeon : MonoBehaviour
                 foreach (var doorPos in activeDoorPositions)
                 {
                     // 如果道具距离门小于 3.2 米，则跳过生成
-                    if (Vector3.Distance(pos, doorPos) < 3.2f)
+                    if (Vector3.Distance(pos, doorPos) < 4.2f)
                     {
                         blocksDoor = true;
                         break;

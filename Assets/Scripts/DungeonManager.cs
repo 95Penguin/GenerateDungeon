@@ -161,6 +161,26 @@ public class DungeonManager : MonoBehaviour
         // 2. 找到最契合连接线的墙砖，并将其强制转换为开放式拱门模型
         Vector3 doorL = GetDoorPosition(roomL, exitDir, (exitDir == GenerateDungeon.WallDirection.East || exitDir == GenerateDungeon.WallDirection.West) ? from.z : from.x);
         Vector3 doorR = GetDoorPosition(roomR, enterDir, (enterDir == GenerateDungeon.WallDirection.East || enterDir == GenerateDungeon.WallDirection.West) ? to.z : to.x);
+        
+        // ─────── 新增：消除极小错位导致的走廊自我堵塞 ───────
+        if (exitDir == GenerateDungeon.WallDirection.North || exitDir == GenerateDungeon.WallDirection.South)
+        {
+            // 纵向连接：如果两扇门的 X 轴错位小于走廊宽度，强制对齐
+            if (Mathf.Abs(doorL.x - doorR.x) < corridorBuilder.corridorWidth)
+            {
+                doorR = GetDoorPosition(roomR, enterDir, doorL.x);
+            }
+        }
+        else
+        {
+            // 横向连接：如果两扇门的 Z 轴错位小于走廊宽度，强制对齐
+            if (Mathf.Abs(doorL.z - doorR.z) < corridorBuilder.corridorWidth)
+            {
+                doorR = GetDoorPosition(roomR, enterDir, doorL.z);
+            }
+        }
+        // ───────────────────────────────────────────────────
+
 
         // 3. 构建智能走廊规划（内部自动判断 3段Z型 与 2段L型，保证垂直无缝衔接）
         corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, lIdx * 100 + rIdx);
