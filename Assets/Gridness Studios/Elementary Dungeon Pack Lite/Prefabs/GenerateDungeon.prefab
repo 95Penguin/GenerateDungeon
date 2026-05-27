@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &225012631201836506
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4550377078883693266}
+  - component: {fileID: 6676631220661760714}
+  m_Layer: 0
+  m_Name: GenerateDungeon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4550377078883693266
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 225012631201836506}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6676631220661760714
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 225012631201836506}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3dcca6dee44e254397b78c73925b15d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  roomSize: {x: 10, y: 10}
+  doorPositionOffset: {x: 0.7, y: 0, z: 0}
+  doorRotationOffset: {x: 0, y: 0, z: 0}
+  activeDoorPositions: []
+  wallMesh: {fileID: 2348616061427368171, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+  wallMeshB: {fileID: 4020010431235954438, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+  wallMaterial: {fileID: 2100000, guid: ca32cada060cf774dbd29b2f3410086a, type: 2}
+  pillarMesh: {fileID: -8642438158314901855, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+  pillarMaterial: {fileID: 2100000, guid: ca32cada060cf774dbd29b2f3410086a, type: 2}
+  floorMesh: {fileID: 4406048967734706137, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+  floorMaterial: {fileID: 2100000, guid: ca32cada060cf774dbd29b2f3410086a, type: 2}
+  junctionPillarMesh: {fileID: -8642438158314901855, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
+  junctionPillarMaterial: {fileID: 2100000, guid: ca32cada060cf774dbd29b2f3410086a, type: 2}
+  dungeonProps:
+  - prefab: {fileID: 4302944737786620945, guid: d429c8a2280208c43ace747d82fa1864, type: 3}
+    positionType: 1
+    spawnProbability: 0.5
+    minCount: 5
+    maxCount: 10
+    offset: {x: 0, y: 0.25, z: 0}
+    randomRotation: 0
+  - prefab: {fileID: 4377933626515690895, guid: a1834b6441f5f964186d094e8fd881e5, type: 3}
+    positionType: 2
+    spawnProbability: 0.5
+    minCount: 20
+    maxCount: 50
+    offset: {x: 0, y: 0.25, z: 0}
+    randomRotation: 0
+  - prefab: {fileID: 3146705093901032357, guid: e0b2491dfd0bb9d4c9007eb87e252f4b, type: 3}
+    positionType: 2
+    spawnProbability: 0.5
+    minCount: 20
+    maxCount: 50
+    offset: {x: 0, y: 0, z: 0}
+    randomRotation: 0
+  - prefab: {fileID: 2157335988112527113, guid: c0b6670604b282847a0f26cf98f36820, type: 3}
+    positionType: 0
+    spawnProbability: 0.5
+    minCount: 10
+    maxCount: 20
+    offset: {x: 0, y: 0.25, z: 0}
+    randomRotation: 0
+  - prefab: {fileID: 6967361487159559488, guid: c533c10f37d12c941bf5dfea26e26cac, type: 3}
+    positionType: 0
+    spawnProbability: 0.5
+    minCount: 10
+    maxCount: 20
+    offset: {x: 0, y: 0.25, z: 0}
+    randomRotation: 0
+  - prefab: {fileID: 4302944737786620945, guid: d429c8a2280208c43ace747d82fa1864, type: 3}
+    positionType: 1
+    spawnProbability: 0.5
+    minCount: 10
+    maxCount: 20
+    offset: {x: 0, y: 0.25, z: 0}
+    randomRotation: 0
