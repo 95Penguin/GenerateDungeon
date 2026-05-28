@@ -47,6 +47,7 @@ MonoBehaviour:
   roomSize: {x: 10, y: 10}
   doorPositionOffset: {x: 0.7, y: 0, z: 0}
   doorRotationOffset: {x: 0, y: 0, z: 0}
+  doorWidthMultiplier: 1
   activeDoorPositions: []
   wallMesh: {fileID: 2348616061427368171, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
   wallMeshB: {fileID: 4020010431235954438, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
@@ -102,7 +103,7 @@ MonoBehaviour:
     randomRotation: 0
   - prefab: {fileID: 1917795962521268346, guid: 8210fda4a3baecf4aa1584ae2d26b17f, type: 3}
     positionType: 0
-    spawnProbability: 0.6
+    spawnProbability: 0.8
     minCount: 3
     maxCount: 6
     offset: {x: 0, y: 2.8, z: 0}

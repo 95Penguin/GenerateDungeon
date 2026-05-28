@@ -55,6 +55,7 @@ public class GenerateDungeon : MonoBehaviour
         PlaceProps();
     }
 
+
     /// <summary>
     /// 遍历本房间所有拱门（matricesB），应用偏移量并生成物理门。
     /// </summary>
@@ -69,26 +70,44 @@ public class GenerateDungeon : MonoBehaviour
                 Vector3 pos = matrix.GetPosition();
                 Quaternion rot = matrix.rotation;
 
-                // ─── 1. 新增：获取当前拱门网格在生成时的实际水平缩放比例 ───
+                // 1. 获取水平缩放比例
                 float wallScaleX = matrix.GetColumn(0).magnitude;
 
-                // 2. 计算微调后的旋转（叠加旋转偏移）
+                // 2. 计算微调后的旋转与位置
                 Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
-
-                // 3. 计算微调后的位置（确保位置偏移会随着门的方向自动旋转）
                 Vector3 finalPos = pos + (rot * doorPositionOffset);
+
+                // 3. 判定该拱门是否在 activeDoorPositions（真门位置）中
+                bool isConnected = false;
+                foreach (var doorPos in activeDoorPositions)
+                {
+                    if (Vector3.Distance(finalPos, doorPos) < 1.5f)
+                    {
+                        isConnected = true;
+                        break;
+                    }
+                }
 
                 // 4. 实例化门
                 GameObject doorInstance = Instantiate(doorPrefab, finalPos, finalRot, transform);
-                doorInstance.name = "ArchwayDoor";
+                doorInstance.name = isConnected ? "ConnectingDoor" : "WrongDoor";
 
-                // ─── 5. 新增：让门继承拱门的水平缩放，确保完美塞满门框，不留缝隙 ───
-                // ─── 修改：将自适应缩放乘上宽度补偿系数 ───
+                // ─── 5. 新增：将所有生成的门（无论是真门还是假门）都注册到避让列表中，防止桌子堵门 ───
+                if (!activeDoorPositions.Contains(finalPos))
+                {
+                    activeDoorPositions.Add(finalPos);
+                }
+
+                // 6. 缩放
                 float finalScale = wallScaleX * doorWidthMultiplier;
-                doorInstance.transform.localScale = new Vector3(wallScaleX, 1f, wallScaleX);
+                doorInstance.transform.localScale = new Vector3(finalScale, 1f, finalScale);
 
-                if (doorInstance.GetComponent<InteractiveDoor>() == null)
-                    doorInstance.AddComponent<InteractiveDoor>();
+                // 7. 获取或挂载 InteractiveDoor 并配置属性
+                InteractiveDoor doorScript = doorInstance.GetComponent<InteractiveDoor>();
+                if (doorScript == null) 
+                    doorScript = doorInstance.AddComponent<InteractiveDoor>();
+
+                doorScript.isConnectingDoor = isConnected; 
             }
         }
     }
@@ -422,12 +441,27 @@ public class GenerateDungeon : MonoBehaviour
     // ══════════════════════════════════════════════════════
     // 道具放置系统 (智能避开所有已启用的门点)
     // ══════════════════════════════════════════════════════
-
+    
     #region 道具放置
     [Header("道具放置系统")]
     public DungeonProp[] dungeonProps;
     private float      _wallThickness;
     private GameObject _propsParent;
+
+
+
+    /// <summary>
+    /// 获取指定墙面上单块墙体（以及拱门）的实际物理宽度
+    /// </summary>
+    public float GetWallSegmentWidth(WallDirection dir)
+    {
+        if (wallMesh == null) return roomSize.x;
+        bool isVertical = (dir == WallDirection.East || dir == WallDirection.West);
+        float spanLength = isVertical ? roomSize.y : roomSize.x;
+        int wallCount = Mathf.Max(1, (int)(spanLength / wallMesh.bounds.size.x));
+        return spanLength / wallCount;
+    }
+
 
     void PlaceProps()
     {
@@ -475,7 +509,7 @@ public class GenerateDungeon : MonoBehaviour
                 foreach (var doorPos in activeDoorPositions)
                 {
                     // 如果道具距离门小于 3.2 米，则跳过生成
-                    if (Vector3.Distance(pos, doorPos) < 4.2f)
+                    if (Vector3.Distance(pos, doorPos) < 2.5f)
                     {
                         blocksDoor = true;
                         break;

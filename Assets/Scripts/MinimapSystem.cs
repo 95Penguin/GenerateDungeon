@@ -123,7 +123,7 @@ public class MinimapSystem : MonoBehaviour
 
     private void FindPlayer()
     {
-        var pc = FindObjectOfType<PlayerController>();
+        var pc = FindFirstObjectByType<PlayerController>();
         if (pc != null)
             playerTransform = pc.transform;
     }

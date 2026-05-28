@@ -108,6 +108,91 @@ public class DungeonManager : MonoBehaviour
 
     // ── BSP 连通 ──────────────────────────────────────────
 
+    // private void ConnectRoomsViaBSP(BSPNode node)
+    // {
+    //     if (node == null || node.isLeaf) return;
+    //     ConnectRoomsViaBSP(node.left);
+    //     ConnectRoomsViaBSP(node.right);
+
+    //     var (leftLeaf, rightLeaf) = BSPDungeonGenerator.GetClosestLeafPair(node.left, node.right);
+    //     if (leftLeaf == null || rightLeaf == null) return;
+
+    //     int lIdx = leftLeaf.roomIndex;
+    //     int rIdx = rightLeaf.roomIndex;
+
+    //     GenerateDungeon roomL = _rooms[lIdx];
+    //     GenerateDungeon roomR = _rooms[rIdx];
+
+    //     Vector3 from = roomL.transform.position;
+    //     Vector3 to   = roomR.transform.position;
+
+    //     // 1. 判断两个相邻房间的连接墙体朝向
+    //     Vector3 diff = to - from;
+    //     GenerateDungeon.WallDirection exitDir;
+    //     GenerateDungeon.WallDirection enterDir;
+
+    //     if (Mathf.Abs(diff.x) > Mathf.Abs(diff.z))
+    //     {
+    //         if (diff.x > 0)
+    //         {
+    //             exitDir  = GenerateDungeon.WallDirection.East;
+    //             enterDir = GenerateDungeon.WallDirection.West;
+    //         }
+    //         else
+    //         {
+    //             exitDir  = GenerateDungeon.WallDirection.West;
+    //             enterDir = GenerateDungeon.WallDirection.East;
+    //         }
+    //     }
+    //     else
+    //     {
+    //         if (diff.z > 0)
+    //         {
+    //             exitDir  = GenerateDungeon.WallDirection.North;
+    //             enterDir = GenerateDungeon.WallDirection.South;
+    //         }
+    //         else
+    //         {
+    //             exitDir  = GenerateDungeon.WallDirection.South;
+    //             enterDir = GenerateDungeon.WallDirection.North;
+    //         }
+    //     }
+
+    //     // 2. 找到最契合连接线的墙砖，并将其强制转换为开放式拱门模型
+    //     Vector3 doorL = GetDoorPosition(roomL, exitDir, (exitDir == GenerateDungeon.WallDirection.East || exitDir == GenerateDungeon.WallDirection.West) ? from.z : from.x);
+    //     Vector3 doorR = GetDoorPosition(roomR, enterDir, (enterDir == GenerateDungeon.WallDirection.East || enterDir == GenerateDungeon.WallDirection.West) ? to.z : to.x);
+        
+    //     // ─────── 新增：消除极小错位导致的走廊自我堵塞 ───────
+    //     if (exitDir == GenerateDungeon.WallDirection.North || exitDir == GenerateDungeon.WallDirection.South)
+    //     {
+    //         // 纵向连接：如果两扇门的 X 轴错位小于走廊宽度，强制对齐
+    //         if (Mathf.Abs(doorL.x - doorR.x) < corridorBuilder.corridorWidth)
+    //         {
+    //             doorR = GetDoorPosition(roomR, enterDir, doorL.x);
+    //         }
+    //     }
+    //     else
+    //     {
+    //         // 横向连接：如果两扇门的 Z 轴错位小于走廊宽度，强制对齐
+    //         if (Mathf.Abs(doorL.z - doorR.z) < corridorBuilder.corridorWidth)
+    //         {
+    //             doorR = GetDoorPosition(roomR, enterDir, doorL.z);
+    //         }
+    //     }
+    //     // ───────────────────────────────────────────────────
+
+
+    //     // 3. 构建智能走廊规划（内部自动判断 3段Z型 与 2段L型，保证垂直无缝衔接）
+    //     corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, lIdx * 100 + rIdx);
+
+    //     // 4. 登记图的邻接关系
+    //     if (!_adjacency[lIdx].Contains(rIdx)) _adjacency[lIdx].Add(rIdx);
+    //     if (!_adjacency[rIdx].Contains(lIdx)) _adjacency[rIdx].Add(lIdx);
+    // }
+
+
+    // 请将 DungeonManager.cs 中的 ConnectRoomsViaBSP 方法替换为以下内容：
+
     private void ConnectRoomsViaBSP(BSPNode node)
     {
         if (node == null || node.isLeaf) return;
@@ -158,34 +243,33 @@ public class DungeonManager : MonoBehaviour
             }
         }
 
+        // 获取该通道的动态匹配内宽
+        float customCorridorWidth = roomL.GetWallSegmentWidth(exitDir);
+
         // 2. 找到最契合连接线的墙砖，并将其强制转换为开放式拱门模型
         Vector3 doorL = GetDoorPosition(roomL, exitDir, (exitDir == GenerateDungeon.WallDirection.East || exitDir == GenerateDungeon.WallDirection.West) ? from.z : from.x);
         Vector3 doorR = GetDoorPosition(roomR, enterDir, (enterDir == GenerateDungeon.WallDirection.East || enterDir == GenerateDungeon.WallDirection.West) ? to.z : to.x);
         
-        // ─────── 新增：消除极小错位导致的走廊自我堵塞 ───────
+        // 3. 消除极小错位导致的走廊自我堵塞（使用动态宽度判断）
         if (exitDir == GenerateDungeon.WallDirection.North || exitDir == GenerateDungeon.WallDirection.South)
         {
-            // 纵向连接：如果两扇门的 X 轴错位小于走廊宽度，强制对齐
-            if (Mathf.Abs(doorL.x - doorR.x) < corridorBuilder.corridorWidth)
+            if (Mathf.Abs(doorL.x - doorR.x) < customCorridorWidth)
             {
                 doorR = GetDoorPosition(roomR, enterDir, doorL.x);
             }
         }
         else
         {
-            // 横向连接：如果两扇门的 Z 轴错位小于走廊宽度，强制对齐
-            if (Mathf.Abs(doorL.z - doorR.z) < corridorBuilder.corridorWidth)
+            if (Mathf.Abs(doorL.z - doorR.z) < customCorridorWidth)
             {
                 doorR = GetDoorPosition(roomR, enterDir, doorL.z);
             }
         }
-        // ───────────────────────────────────────────────────
 
+        // 4. 构建智能走廊规划（传入动态计算出的宽度，防止侧墙穿插拱门）
+        corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, customCorridorWidth, lIdx * 100 + rIdx);
 
-        // 3. 构建智能走廊规划（内部自动判断 3段Z型 与 2段L型，保证垂直无缝衔接）
-        corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, lIdx * 100 + rIdx);
-
-        // 4. 登记图的邻接关系
+        // 5. 登记图的邻接关系
         if (!_adjacency[lIdx].Contains(rIdx)) _adjacency[lIdx].Add(rIdx);
         if (!_adjacency[rIdx].Contains(lIdx)) _adjacency[rIdx].Add(lIdx);
     }
