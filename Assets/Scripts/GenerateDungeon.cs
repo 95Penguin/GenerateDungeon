@@ -56,8 +56,61 @@ public class GenerateDungeon : MonoBehaviour
         PlaceProps(isKeyRoom);
     }
 
-    // 修改 SpawnDoors 方法，允许传入一个需要排除的世界坐标（例如终点的锁门位置）
-    public void SpawnDoors(GameObject doorPrefab, Vector3 excludePosition = default)
+    // // 修改 SpawnDoors 方法，允许传入一个需要排除的世界坐标（例如终点的锁门位置）
+    // public void SpawnDoors(GameObject doorPrefab, Vector3 excludePosition = default)
+    // {
+    //     if (doorPrefab == null) return;
+
+    //     foreach (var face in _wallFaces)
+    //     {
+    //         foreach (var matrix in face.matricesB)
+    //         {
+    //             Vector3 pos = matrix.GetPosition();
+    //             Quaternion rot = matrix.rotation;
+
+    //             float wallScaleX = matrix.GetColumn(0).magnitude;
+
+    //             Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
+    //             Vector3 finalPos = pos + (rot * doorPositionOffset);
+
+    //             // ─── 新增排除逻辑：如果这个门的位置距离锁门位置极近，则跳过生成普通交互门 ───
+    //             if (excludePosition != default && Vector3.Distance(finalPos, excludePosition) < 1.5f)
+    //             {
+    //                 Debug.Log($"[GenerateDungeon] 已跳过在 {finalPos} 生成重复的普通门，此处将留给锁门。");
+    //                 continue;
+    //             }
+
+    //             bool isConnected = false;
+    //             foreach (var doorPos in activeDoorPositions)
+    //             {
+    //                 if (Vector3.Distance(finalPos, doorPos) < 1.5f)
+    //                 {
+    //                     isConnected = true;
+    //                     break;
+    //                 }
+    //             }
+
+    //             GameObject doorInstance = Instantiate(doorPrefab, finalPos, finalRot, transform);
+    //             doorInstance.name = isConnected ? "ConnectingDoor" : "WrongDoor";
+
+    //             if (!activeDoorPositions.Contains(finalPos))
+    //             {
+    //                 activeDoorPositions.Add(finalPos);
+    //             }
+
+    //             float finalScale = wallScaleX * doorWidthMultiplier;
+    //             doorInstance.transform.localScale = new Vector3(finalScale, 1f, finalScale);
+
+    //             InteractiveDoor doorScript = doorInstance.GetComponent<InteractiveDoor>();
+    //             if (doorScript == null) 
+    //                 doorScript = doorInstance.AddComponent<InteractiveDoor>();
+
+    //             doorScript.isConnectingDoor = isConnected; 
+    //         }
+    //     }
+    // }
+
+    public void SpawnDoors(GameObject doorPrefab)
     {
         if (doorPrefab == null) return;
 
@@ -72,13 +125,6 @@ public class GenerateDungeon : MonoBehaviour
 
                 Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
                 Vector3 finalPos = pos + (rot * doorPositionOffset);
-
-                // ─── 新增排除逻辑：如果这个门的位置距离锁门位置极近，则跳过生成普通交互门 ───
-                if (excludePosition != default && Vector3.Distance(finalPos, excludePosition) < 1.5f)
-                {
-                    Debug.Log($"[GenerateDungeon] 已跳过在 {finalPos} 生成重复的普通门，此处将留给锁门。");
-                    continue;
-                }
 
                 bool isConnected = false;
                 foreach (var doorPos in activeDoorPositions)

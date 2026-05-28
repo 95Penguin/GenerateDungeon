@@ -113,11 +113,42 @@ public class PlayerController : MonoBehaviour
         controller.Move(move * Time.deltaTime);
     }
 
+    // void HandlePickup()
+    // {
+    //     Vector3 rayOrigin = playerCamera.transform.position + playerCamera.transform.forward * 3.0f;
+    //     Ray ray = new Ray(rayOrigin, playerCamera.transform.forward);
+    //     // 在 Scene 窗口绘制一条红色的调试射线，方便您实时观察射线的长度和落点
+    //     Debug.DrawRay(rayOrigin, playerCamera.transform.forward * pickupRange, Color.red);
+
+    //     if (Physics.Raycast(ray, out RaycastHit hit, pickupRange))
+    //     {
+    //         var key = hit.collider.GetComponent<KeyItem>();
+    //         if (key != null)
+    //         {
+    //             OnPickupPrompt?.Invoke(true, $"Press [{pickupKey}] to Pick Up Key");
+    //             if (Input.GetKeyDown(pickupKey))
+    //                 key.Pickup();
+    //             return;
+    //         }
+
+    //         var door = hit.collider.GetComponentInParent<InteractiveDoor>() 
+    //                 ?? hit.collider.GetComponent<InteractiveDoor>();
+    //         if (door != null)
+    //         {
+    //             OnPickupPrompt?.Invoke(true, $"Press [{pickupKey}] to Open/Close");
+    //             if (Input.GetKeyDown(pickupKey))
+    //                 door.Interact();
+    //             return;
+    //         }
+    //     }
+
+    //     OnPickupPrompt?.Invoke(false, "");
+    // }
+
     void HandlePickup()
     {
         Vector3 rayOrigin = playerCamera.transform.position + playerCamera.transform.forward * 3.0f;
         Ray ray = new Ray(rayOrigin, playerCamera.transform.forward);
-        // 在 Scene 窗口绘制一条红色的调试射线，方便您实时观察射线的长度和落点
         Debug.DrawRay(rayOrigin, playerCamera.transform.forward * pickupRange, Color.red);
 
         if (Physics.Raycast(ray, out RaycastHit hit, pickupRange))
@@ -135,9 +166,29 @@ public class PlayerController : MonoBehaviour
                     ?? hit.collider.GetComponent<InteractiveDoor>();
             if (door != null)
             {
-                OnPickupPrompt?.Invoke(true, $"Press [{pickupKey}] to Open/Close");
-                if (Input.GetKeyDown(pickupKey))
-                    door.Interact();
+                // ─── 核心修改：如果是需要钥匙且尚未解锁的大门 ───
+                if (door.requiresKeyToOpen && !door.IsUnlocked)
+                {
+                    if (GameState.Instance != null && GameState.Instance.HasKey)
+                    {
+                        OnPickupPrompt?.Invoke(true, "Press [X] to Unlock");
+                        if (Input.GetKeyDown(KeyCode.X))
+                        {
+                            door.Unlock();
+                        }
+                    }
+                    else
+                    {
+                        OnPickupPrompt?.Invoke(true, "Key Required!");
+                    }
+                }
+                else
+                {
+                    // 普通门或已解锁的大门，恢复默认提示并允许按 E 开关
+                    OnPickupPrompt?.Invoke(true, $"Press [{pickupKey}] to Open/Close");
+                    if (Input.GetKeyDown(pickupKey))
+                        door.Interact();
+                }
                 return;
             }
         }

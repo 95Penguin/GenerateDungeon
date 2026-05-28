@@ -167,7 +167,7 @@ public class UIManager : MonoBehaviour
         }
 
         if (winTimeText != null)
-            winTimeText.text = $"用时  {GameState.FormatTime(elapsedTime)}";
+            winTimeText.text = $"Time Spent:  {GameState.FormatTime(elapsedTime)}";
         Cursor.lockState = CursorLockMode.None;
     }
 

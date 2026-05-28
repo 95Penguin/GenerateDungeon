@@ -88,10 +88,16 @@ public class DungeonManager : MonoBehaviour
             lockedDoorPos = _rooms[_goalRoomIndex].activeDoorPositions[0];
         }
 
-        // 4. 在所有的拱门位置填入物理门（传入锁门位置进行排除）
+        // // 4. 在所有的拱门位置填入物理门（传入锁门位置进行排除）
+        // foreach (var room in _rooms)
+        // {
+        //     room.SpawnDoors(interactiveDoorPrefab, lockedDoorPos);
+        // }
+
+        // 4. 让所有房间在所有的拱门位置填入物理门（完全采用普通的完美自然生成，不带任何位置排除参数）
         foreach (var room in _rooms)
         {
-            room.SpawnDoors(interactiveDoorPrefab, lockedDoorPos);
+            room.SpawnDoors(interactiveDoorPrefab);
         }
 
         // 5. 重建带拱门的房间物理碰撞体
@@ -297,59 +303,73 @@ public class DungeonManager : MonoBehaviour
     }
 
 
+    // private void PlaceLockedDoor()
+    // {
+    //     if (_goalRoomIndex < 0) return;
+
+    //     GenerateDungeon goalRoom = _rooms[_goalRoomIndex];
+    //     if (goalRoom.activeDoorPositions.Count == 0) return;
+
+    //     // 获取终点门口的物理世界坐标
+    //     Vector3 doorPos = goalRoom.activeDoorPositions[0];
+
+    //     // ─── 核心修改：弃用 Physics 物理重叠检测，改用纯脚本检索，彻底免受物理帧延迟的干扰 ───
+    //     int lockCount = 0;
+        
+    //     // 获取场景中所有的 InteractiveDoor 门组件
+    //     InteractiveDoor[] allDoors = FindObjectsByType<InteractiveDoor>(FindObjectsSortMode.None);
+        
+    //     foreach (var door in allDoors)
+    //     {
+    //         if (door != null)
+    //         {
+    //             // 只要大门到终点门口的距离小于 2.0 米，就将其加锁
+    //             float distance = Vector3.Distance(door.transform.position, doorPos);
+    //             if (distance < 2.0f)
+    //             {
+    //                 door.requiresKeyToOpen = true;
+    //                 lockCount++;
+    //             }
+    //         }
+    //     }
+
+    //     Debug.Log($"[DungeonManager] 成功在终点房门口检索并锁定大门（共标定 {lockCount} 个门板）。");
+    // }
+
     private void PlaceLockedDoor()
     {
-        if (lockedDoorPrefab == null || _goalRoomIndex < 0) return;
+        if (_goalRoomIndex < 0) return;
 
         GenerateDungeon goalRoom = _rooms[_goalRoomIndex];
-        if (goalRoom.activeDoorPositions.Count == 0)
-        {
-            Debug.LogWarning("[DungeonManager] 终点房间没有检测到激活的门口，无法放置终点大门！");
-            return;
-        }
+        if (goalRoom.activeDoorPositions.Count == 0) return;
 
-        Vector3 doorPos = goalRoom.activeDoorPositions[0]; 
-        Vector3 center = goalRoom.transform.position;
-        Vector3 diff = doorPos - center;
+        // 终点门口的物理世界坐标
+        Vector3 doorPos = goalRoom.activeDoorPositions[0];
+
+        int lockCount = 0;
         
-        Quaternion doorRot = Quaternion.identity;
-        GenerateDungeon.WallDirection dir;
-
-        if (Mathf.Abs(diff.x) > Mathf.Abs(diff.z))
+        // 获取场景中所有的普通门组件
+        InteractiveDoor[] allDoors = FindObjectsByType<InteractiveDoor>(FindObjectsSortMode.None);
+        
+        foreach (var door in allDoors)
         {
-            dir = diff.x > 0 ? GenerateDungeon.WallDirection.East : GenerateDungeon.WallDirection.West;
-            doorRot = Quaternion.Euler(0f, diff.x > 0 ? 90f : 270f, 0f);
-        }
-        else
-        {
-            dir = diff.z > 0 ? GenerateDungeon.WallDirection.North : GenerateDungeon.WallDirection.South;
-            doorRot = Quaternion.Euler(0f, diff.z > 0 ? 0f : 180f, 0f);
-        }
+            if (door != null)
+            {
+                float distance = Vector3.Distance(door.transform.position, doorPos);
+                
+                // ─── 新增：在控制台打印每一扇门到终点门口的精确距离，让我们一目了然 ───
+                Debug.Log($"[DungeonManager] 检索到门板: {door.gameObject.name}, 距离终点定位点为: {distance:F2} 米");
 
-        Vector3 finalPos = new Vector3(doorPos.x, 0f, doorPos.z);
-        var door = Instantiate(lockedDoorPrefab, finalPos, doorRot);
-        door.name = "LockedDoor";
-
-        // ─── 核心修改：动态计算大门所需的缩放比例，使其完美填满拱门宽度 ───
-        if (goalRoom.wallMesh != null)
-        {
-            float spanLength = (dir == GenerateDungeon.WallDirection.East || dir == GenerateDungeon.WallDirection.West) 
-                ? goalRoom.roomSize.y 
-                : goalRoom.roomSize.x;
-            
-            int wallCount = Mathf.Max(1, (int)(spanLength / goalRoom.wallMesh.bounds.size.x));
-            float wallScaleX = (spanLength / wallCount) / goalRoom.wallMesh.bounds.size.x;
-            
-            // float finalScale = wallScaleX * goalRoom.doorWidthMultiplier;
-            // ─── 核心修改：将宽度拉伸 2.0 倍，使单扇门完美盖住整个双宽拱门通道 ───
-            float finalScaleWidth = wallScaleX * goalRoom.doorWidthMultiplier * 2.0f;
-            float finalScaleThickness = wallScaleX * goalRoom.doorWidthMultiplier; // 保持厚度正常
-            door.transform.localScale = new Vector3(finalScaleWidth, 1f, finalScaleThickness);
-            Debug.Log($"[DungeonManager] 已为终点大门应用缩放宽度: {finalScaleWidth}");
+                // ─── 核心修改：将判定阈值扩大到 4.0 米，绝对安全地锁住终点房的双扇大门 ───
+                if (distance < 4.0f)
+                {
+                    door.requiresKeyToOpen = true;
+                    lockCount++;
+                }
+            }
         }
 
-        if (door.GetComponent<LockedDoor>() == null) 
-            door.AddComponent<LockedDoor>();
+        Debug.Log($"[DungeonManager] 成功将终点房门口已有的双扇普通门（共锁定 {lockCount} 个门板对象）设为限制锁定状态！");
     }
 
     private void PlaceGoalTrigger()
