@@ -50,6 +50,7 @@ public class DungeonManager : MonoBehaviour
         Generate();
     }
 
+    
     public void Generate()
     {
         // 1. BSP 切割
@@ -77,118 +78,40 @@ public class DungeonManager : MonoBehaviour
         // 3. 连接走廊 + 自动在对应墙面“强制替换”出拱门
         ConnectRoomsViaBSP(root);
 
-        // ─────── 新增：在此处让所有房间在所有的拱门位置填入物理门 ───────
+        // ─── 核心修改：将“寻找起终点”的调用提前到生成门之前 ───
+        FindStartAndGoal();
+
+        // ─── 此时 _goalRoomIndex 已经确定，可以精准获取锁门位置进行排除了 ───
+        Vector3 lockedDoorPos = Vector3.zero;
+        if (_goalRoomIndex >= 0 && _rooms[_goalRoomIndex].activeDoorPositions.Count > 0)
+        {
+            lockedDoorPos = _rooms[_goalRoomIndex].activeDoorPositions[0];
+        }
+
+        // 4. 在所有的拱门位置填入物理门（传入锁门位置进行排除）
         foreach (var room in _rooms)
         {
-            room.SpawnDoors(interactiveDoorPrefab);
+            room.SpawnDoors(interactiveDoorPrefab, lockedDoorPos);
         }
-        // ─────────────────────────────────────────────────────────────
 
-        // 4. 重建带拱门的房间物理碰撞体（由于拱门不被删除，所以可以完美进行网格合并和烘焙）
+        // 5. 重建带拱门的房间物理碰撞体
         foreach (var room in _rooms)
             room.RebuildWallColliders();
 
-        // 5. 延迟放置道具：此时已记录了所有已启用的拱门位置，生成道具时可以安全避开，绝不堵门
+        // 6. 延迟放置道具
         foreach (var room in _rooms)
             room.DelayedPlaceProps();
 
-        // 6. 寻找起终点
-        FindStartAndGoal();
-
-        // 7. 标记地板
+        // 7. 标记起终点地板颜色
         if (_startRoomIndex >= 0) _rooms[_startRoomIndex].SetFloorOverlay(startRoomMaterial);
         if (_goalRoomIndex  >= 0) _rooms[_goalRoomIndex ].SetFloorOverlay(goalRoomMaterial);
 
-        // 8. 放置特殊道具与玩家
+        // 8. 放置特殊道具、锁门与玩家
         PlaceKeyInMiddleRoom();
         PlaceLockedDoor();
         PlaceGoalTrigger();
         SpawnPlayer();
     }
-
-    // ── BSP 连通 ──────────────────────────────────────────
-
-    // private void ConnectRoomsViaBSP(BSPNode node)
-    // {
-    //     if (node == null || node.isLeaf) return;
-    //     ConnectRoomsViaBSP(node.left);
-    //     ConnectRoomsViaBSP(node.right);
-
-    //     var (leftLeaf, rightLeaf) = BSPDungeonGenerator.GetClosestLeafPair(node.left, node.right);
-    //     if (leftLeaf == null || rightLeaf == null) return;
-
-    //     int lIdx = leftLeaf.roomIndex;
-    //     int rIdx = rightLeaf.roomIndex;
-
-    //     GenerateDungeon roomL = _rooms[lIdx];
-    //     GenerateDungeon roomR = _rooms[rIdx];
-
-    //     Vector3 from = roomL.transform.position;
-    //     Vector3 to   = roomR.transform.position;
-
-    //     // 1. 判断两个相邻房间的连接墙体朝向
-    //     Vector3 diff = to - from;
-    //     GenerateDungeon.WallDirection exitDir;
-    //     GenerateDungeon.WallDirection enterDir;
-
-    //     if (Mathf.Abs(diff.x) > Mathf.Abs(diff.z))
-    //     {
-    //         if (diff.x > 0)
-    //         {
-    //             exitDir  = GenerateDungeon.WallDirection.East;
-    //             enterDir = GenerateDungeon.WallDirection.West;
-    //         }
-    //         else
-    //         {
-    //             exitDir  = GenerateDungeon.WallDirection.West;
-    //             enterDir = GenerateDungeon.WallDirection.East;
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if (diff.z > 0)
-    //         {
-    //             exitDir  = GenerateDungeon.WallDirection.North;
-    //             enterDir = GenerateDungeon.WallDirection.South;
-    //         }
-    //         else
-    //         {
-    //             exitDir  = GenerateDungeon.WallDirection.South;
-    //             enterDir = GenerateDungeon.WallDirection.North;
-    //         }
-    //     }
-
-    //     // 2. 找到最契合连接线的墙砖，并将其强制转换为开放式拱门模型
-    //     Vector3 doorL = GetDoorPosition(roomL, exitDir, (exitDir == GenerateDungeon.WallDirection.East || exitDir == GenerateDungeon.WallDirection.West) ? from.z : from.x);
-    //     Vector3 doorR = GetDoorPosition(roomR, enterDir, (enterDir == GenerateDungeon.WallDirection.East || enterDir == GenerateDungeon.WallDirection.West) ? to.z : to.x);
-        
-    //     // ─────── 新增：消除极小错位导致的走廊自我堵塞 ───────
-    //     if (exitDir == GenerateDungeon.WallDirection.North || exitDir == GenerateDungeon.WallDirection.South)
-    //     {
-    //         // 纵向连接：如果两扇门的 X 轴错位小于走廊宽度，强制对齐
-    //         if (Mathf.Abs(doorL.x - doorR.x) < corridorBuilder.corridorWidth)
-    //         {
-    //             doorR = GetDoorPosition(roomR, enterDir, doorL.x);
-    //         }
-    //     }
-    //     else
-    //     {
-    //         // 横向连接：如果两扇门的 Z 轴错位小于走廊宽度，强制对齐
-    //         if (Mathf.Abs(doorL.z - doorR.z) < corridorBuilder.corridorWidth)
-    //         {
-    //             doorR = GetDoorPosition(roomR, enterDir, doorL.z);
-    //         }
-    //     }
-    //     // ───────────────────────────────────────────────────
-
-
-    //     // 3. 构建智能走廊规划（内部自动判断 3段Z型 与 2段L型，保证垂直无缝衔接）
-    //     corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, lIdx * 100 + rIdx);
-
-    //     // 4. 登记图的邻接关系
-    //     if (!_adjacency[lIdx].Contains(rIdx)) _adjacency[lIdx].Add(rIdx);
-    //     if (!_adjacency[rIdx].Contains(lIdx)) _adjacency[rIdx].Add(lIdx);
-    // }
 
 
     // 请将 DungeonManager.cs 中的 ConnectRoomsViaBSP 方法替换为以下内容：
@@ -373,38 +296,60 @@ public class DungeonManager : MonoBehaviour
         return path.Count < 3 ? -1 : path[Random.Range(1, path.Count - 1)];
     }
 
+
     private void PlaceLockedDoor()
     {
         if (lockedDoorPrefab == null || _goalRoomIndex < 0) return;
-        var neighbors = _adjacency[_goalRoomIndex];
-        if (neighbors.Count == 0) return;
 
-        Vector3 fromPos = _rooms[neighbors[0]].transform.position;
-        Vector3 toPos   = _rooms[_goalRoomIndex].transform.position;
-        Vector2 sizeR   = _rooms[_goalRoomIndex].roomSize;
-
-        float dx = Mathf.Abs(toPos.x - fromPos.x);
-        float dz = Mathf.Abs(toPos.z - fromPos.z);
-
-        Vector3    doorPos;
-        Quaternion doorRot;
-
-        if (dz >= dx)
+        GenerateDungeon goalRoom = _rooms[_goalRoomIndex];
+        if (goalRoom.activeDoorPositions.Count == 0)
         {
-            float side = (fromPos.z < toPos.z) ? -1f : 1f;
-            doorPos = new Vector3(toPos.x, 0f, toPos.z + side * sizeR.y / 2f);
-            doorRot = Quaternion.Euler(0f, side > 0 ? 0f : 180f, 0f);
+            Debug.LogWarning("[DungeonManager] 终点房间没有检测到激活的门口，无法放置终点大门！");
+            return;
+        }
+
+        Vector3 doorPos = goalRoom.activeDoorPositions[0]; 
+        Vector3 center = goalRoom.transform.position;
+        Vector3 diff = doorPos - center;
+        
+        Quaternion doorRot = Quaternion.identity;
+        GenerateDungeon.WallDirection dir;
+
+        if (Mathf.Abs(diff.x) > Mathf.Abs(diff.z))
+        {
+            dir = diff.x > 0 ? GenerateDungeon.WallDirection.East : GenerateDungeon.WallDirection.West;
+            doorRot = Quaternion.Euler(0f, diff.x > 0 ? 90f : 270f, 0f);
         }
         else
         {
-            float side = (fromPos.x < toPos.x) ? -1f : 1f;
-            doorPos = new Vector3(toPos.x + side * sizeR.x / 2f, 0f, toPos.z);
-            doorRot = Quaternion.Euler(0f, side > 0 ? 90f : 270f, 0f);
+            dir = diff.z > 0 ? GenerateDungeon.WallDirection.North : GenerateDungeon.WallDirection.South;
+            doorRot = Quaternion.Euler(0f, diff.z > 0 ? 0f : 180f, 0f);
         }
 
-        var door = Instantiate(lockedDoorPrefab, doorPos, doorRot);
+        Vector3 finalPos = new Vector3(doorPos.x, 0f, doorPos.z);
+        var door = Instantiate(lockedDoorPrefab, finalPos, doorRot);
         door.name = "LockedDoor";
-        if (door.GetComponent<LockedDoor>() == null) door.AddComponent<LockedDoor>();
+
+        // ─── 核心修改：动态计算大门所需的缩放比例，使其完美填满拱门宽度 ───
+        if (goalRoom.wallMesh != null)
+        {
+            float spanLength = (dir == GenerateDungeon.WallDirection.East || dir == GenerateDungeon.WallDirection.West) 
+                ? goalRoom.roomSize.y 
+                : goalRoom.roomSize.x;
+            
+            int wallCount = Mathf.Max(1, (int)(spanLength / goalRoom.wallMesh.bounds.size.x));
+            float wallScaleX = (spanLength / wallCount) / goalRoom.wallMesh.bounds.size.x;
+            
+            // float finalScale = wallScaleX * goalRoom.doorWidthMultiplier;
+            // ─── 核心修改：将宽度拉伸 2.0 倍，使单扇门完美盖住整个双宽拱门通道 ───
+            float finalScaleWidth = wallScaleX * goalRoom.doorWidthMultiplier * 2.0f;
+            float finalScaleThickness = wallScaleX * goalRoom.doorWidthMultiplier; // 保持厚度正常
+            door.transform.localScale = new Vector3(finalScaleWidth, 1f, finalScaleThickness);
+            Debug.Log($"[DungeonManager] 已为终点大门应用缩放宽度: {finalScaleWidth}");
+        }
+
+        if (door.GetComponent<LockedDoor>() == null) 
+            door.AddComponent<LockedDoor>();
     }
 
     private void PlaceGoalTrigger()

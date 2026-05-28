@@ -145,3 +145,6 @@ public class PlayerController : MonoBehaviour
         OnPickupPrompt?.Invoke(false, "");
     }
 }
+
+
+

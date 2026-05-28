@@ -14,7 +14,7 @@ using UnityEngine;
 public class KeyItem : MonoBehaviour
 {
     [Header("拾取提示（可选）")]
-    public string pickupMessage = "拾取钥匙！";
+    public string pickupMessage = "Key Picked Up!";
 
     [Header("旋转动画")]
     public float rotateSpeed = 90f;

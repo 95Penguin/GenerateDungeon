@@ -50,16 +50,14 @@ public class GenerateDungeon : MonoBehaviour
         }
     }
 
-    public void DelayedPlaceProps()
+    // 1. 修改 DelayedPlaceProps 接口，允许接收钥匙房标记
+    public void DelayedPlaceProps(bool isKeyRoom = false)
     {
-        PlaceProps();
+        PlaceProps(isKeyRoom);
     }
 
-
-    /// <summary>
-    /// 遍历本房间所有拱门（matricesB），应用偏移量并生成物理门。
-    /// </summary>
-    public void SpawnDoors(GameObject doorPrefab)
+    // 修改 SpawnDoors 方法，允许传入一个需要排除的世界坐标（例如终点的锁门位置）
+    public void SpawnDoors(GameObject doorPrefab, Vector3 excludePosition = default)
     {
         if (doorPrefab == null) return;
 
@@ -70,14 +68,18 @@ public class GenerateDungeon : MonoBehaviour
                 Vector3 pos = matrix.GetPosition();
                 Quaternion rot = matrix.rotation;
 
-                // 1. 获取水平缩放比例
                 float wallScaleX = matrix.GetColumn(0).magnitude;
 
-                // 2. 计算微调后的旋转与位置
                 Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
                 Vector3 finalPos = pos + (rot * doorPositionOffset);
 
-                // 3. 判定该拱门是否在 activeDoorPositions（真门位置）中
+                // ─── 新增排除逻辑：如果这个门的位置距离锁门位置极近，则跳过生成普通交互门 ───
+                if (excludePosition != default && Vector3.Distance(finalPos, excludePosition) < 1.5f)
+                {
+                    Debug.Log($"[GenerateDungeon] 已跳过在 {finalPos} 生成重复的普通门，此处将留给锁门。");
+                    continue;
+                }
+
                 bool isConnected = false;
                 foreach (var doorPos in activeDoorPositions)
                 {
@@ -88,21 +90,17 @@ public class GenerateDungeon : MonoBehaviour
                     }
                 }
 
-                // 4. 实例化门
                 GameObject doorInstance = Instantiate(doorPrefab, finalPos, finalRot, transform);
                 doorInstance.name = isConnected ? "ConnectingDoor" : "WrongDoor";
 
-                // ─── 5. 新增：将所有生成的门（无论是真门还是假门）都注册到避让列表中，防止桌子堵门 ───
                 if (!activeDoorPositions.Contains(finalPos))
                 {
                     activeDoorPositions.Add(finalPos);
                 }
 
-                // 6. 缩放
                 float finalScale = wallScaleX * doorWidthMultiplier;
                 doorInstance.transform.localScale = new Vector3(finalScale, 1f, finalScale);
 
-                // 7. 获取或挂载 InteractiveDoor 并配置属性
                 InteractiveDoor doorScript = doorInstance.GetComponent<InteractiveDoor>();
                 if (doorScript == null) 
                     doorScript = doorInstance.AddComponent<InteractiveDoor>();
@@ -463,7 +461,72 @@ public class GenerateDungeon : MonoBehaviour
     }
 
 
-    void PlaceProps()
+    // void PlaceProps()
+    // {
+    //     if (dungeonProps == null || dungeonProps.Length == 0) return;
+
+    //     _wallThickness = wallMesh.bounds.extents.z;
+    //     float uw = roomSize.x - 2f * _wallThickness;
+    //     float uh = roomSize.y - 2f * _wallThickness;
+    //     float minX = transform.position.x - uw / 2f;
+    //     float maxX = transform.position.x + uw / 2f;
+    //     float minZ = transform.position.z - uh / 2f;
+    //     float maxZ = transform.position.z + uh / 2f;
+
+    //     if (_propsParent == null)
+    //     {
+    //         _propsParent = new GameObject("PropsParent");
+    //         _propsParent.transform.SetParent(transform);
+    //     }
+
+    //     var placedOBBs = new List<OBB>();
+
+    //     foreach (var prop in dungeonProps)
+    //     {
+    //         int count = Random.Range(prop.minCount, prop.maxCount + 1);
+    //         for (int i = 0; i < count; i++)
+    //         {
+    //             if (Random.value > prop.spawnProbability) continue;
+
+    //             Vector3    pos  = Vector3.zero;
+    //             Quaternion rot  = Quaternion.identity;
+    //             Vector3    half = Vector3.zero;
+
+    //             bool ok = prop.positionType switch
+    //             {
+    //                 DungeonProp.PositionType.Wall    => TryFindWallPosition  (prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
+    //                 DungeonProp.PositionType.Corner  => TryFindCornerPosition(prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
+    //                 DungeonProp.PositionType.Middle  => TryFindMiddlePosition(prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
+    //                 DungeonProp.PositionType.Anywhere=> TryFindAnyPosition   (prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
+    //                 _ => false
+    //             };
+    //             if (!ok) continue;
+
+    //             // 核心过滤：检查道具是否太靠近任何已经激活的拱门出口
+    //             bool blocksDoor = false;
+    //             foreach (var doorPos in activeDoorPositions)
+    //             {
+    //                 // 如果道具距离门小于 3.2 米，则跳过生成
+    //                 if (Vector3.Distance(pos, doorPos) < 2.5f)
+    //                 {
+    //                     blocksDoor = true;
+    //                     break;
+    //                 }
+    //             }
+    //             if (blocksDoor) continue;
+
+    //             if (prop.randomRotation) rot = Quaternion.Euler(0, Random.Range(0, 360), 0);
+    //             if (!CheckOverlap(pos, half, rot, placedOBBs))
+    //             {
+    //                 Instantiate(prop.prefab, pos + prop.offset, rot).transform.SetParent(_propsParent.transform);
+    //                 placedOBBs.Add(new OBB { center = pos, extents = half, rotation = rot });
+    //             }
+    //         }
+    //     }
+    // }
+
+    // 2. 修改 PlaceProps 方法，增加避让逻辑
+    void PlaceProps(bool isKeyRoom = false)
     {
         if (dungeonProps == null || dungeonProps.Length == 0) return;
 
@@ -504,11 +567,16 @@ public class GenerateDungeon : MonoBehaviour
                 };
                 if (!ok) continue;
 
+                // ─── 核心修改 1：如果是钥匙房，且生成的道具坐标太靠近房间物理中心（防止箱子/木桶刷在钥匙正下方导致穿插） ───
+                if (isKeyRoom && Vector3.Distance(pos, transform.position) < 2.5f)
+                {
+                    continue; // 跳过此道具的生成，保持正中心空旷
+                }
+
                 // 核心过滤：检查道具是否太靠近任何已经激活的拱门出口
                 bool blocksDoor = false;
                 foreach (var doorPos in activeDoorPositions)
                 {
-                    // 如果道具距离门小于 3.2 米，则跳过生成
                     if (Vector3.Distance(pos, doorPos) < 2.5f)
                     {
                         blocksDoor = true;
@@ -526,6 +594,7 @@ public class GenerateDungeon : MonoBehaviour
             }
         }
     }
+
 
     bool TryFindWallPosition(GameObject prefab, float minX, float maxX, float minZ, float maxZ,
                              out Vector3 pos, out Quaternion rot, out Vector3 half)
@@ -601,3 +670,5 @@ public class GenerateDungeon : MonoBehaviour
     }
     #endregion
 }
+
+
