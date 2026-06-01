@@ -48,6 +48,8 @@ MonoBehaviour:
   doorPositionOffset: {x: 0.7, y: 0, z: 0}
   doorRotationOffset: {x: 0, y: 0, z: 0}
   doorWidthMultiplier: 1
+  ceilingPrefab: {fileID: 4580446331104520154, guid: 9f2ed2ef64d0a59419c4791d6ddda859, type: 3}
+  ceilingHeight: 4
   activeDoorPositions: []
   wallMesh: {fileID: 2348616061427368171, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
   wallMeshB: {fileID: 4020010431235954438, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
@@ -59,6 +61,13 @@ MonoBehaviour:
   junctionPillarMesh: {fileID: -8642438158314901855, guid: edcc86a903182d0429c0d7b2c727fec0, type: 3}
   junctionPillarMaterial: {fileID: 2100000, guid: ca32cada060cf774dbd29b2f3410086a, type: 2}
   dungeonProps:
+  - prefab: {fileID: 1917795962521268346, guid: 8210fda4a3baecf4aa1584ae2d26b17f, type: 3}
+    positionType: 0
+    spawnProbability: 1
+    minCount: 4
+    maxCount: 6
+    offset: {x: 0, y: 2.5, z: 0}
+    randomRotation: 0
   - prefab: {fileID: 4302944737786620945, guid: d429c8a2280208c43ace747d82fa1864, type: 3}
     positionType: 1
     spawnProbability: 0.5
@@ -100,11 +109,4 @@ MonoBehaviour:
     minCount: 10
     maxCount: 20
     offset: {x: 0, y: 0.25, z: 0}
-    randomRotation: 0
-  - prefab: {fileID: 1917795962521268346, guid: 8210fda4a3baecf4aa1584ae2d26b17f, type: 3}
-    positionType: 0
-    spawnProbability: 0.8
-    minCount: 3
-    maxCount: 6
-    offset: {x: 0, y: 2.8, z: 0}
     randomRotation: 0

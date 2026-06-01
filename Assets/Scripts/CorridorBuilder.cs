@@ -129,6 +129,34 @@ public class CorridorBuilder : MonoBehaviour
             addCollider: true
         );
 
+        // // ─── 新增：拐角天花板生成 ───
+        // CreateBox(
+        //     name:   "CorridorCornerCeiling",
+        //     pos:    new Vector3(pos.x, corridorWallHeight + corridorFloorThickness / 2f, pos.z),
+        //     scaleX: width,
+        //     scaleY: corridorFloorThickness,
+        //     scaleZ: width,
+        //     mat:    corridorMaterial, // 使用与地板或墙体相同的材质
+        //     defaultColor: new Color(0.45f, 0.45f, 0.45f),
+        //     addCollider: true
+        // );
+
+        // ─── 修改：接收生成的拐角天花板对象并设置图层 ───
+        GameObject cornerCeiling = CreateBox(
+            name:   "CorridorCornerCeiling",
+            pos:    new Vector3(pos.x, corridorWallHeight + corridorFloorThickness / 2f, pos.z),
+            scaleX: width,
+            scaleY: corridorFloorThickness,
+            scaleZ: width,
+            mat:    corridorMaterial,
+            defaultColor: new Color(0.45f, 0.45f, 0.45f),
+            addCollider: true
+        );
+        if (cornerCeiling != null)
+        {
+            cornerCeiling.layer = LayerMask.NameToLayer("Ceiling");
+        }
+
         HashSet<Vector3> openDirections = new HashSet<Vector3>
         {
             GetNearestCardinal(dir1),
@@ -197,6 +225,35 @@ public class CorridorBuilder : MonoBehaviour
             defaultColor: new Color(0.45f, 0.45f, 0.45f),
             addCollider: true
         );
+
+
+        // // ─── 新增：走廊直道天花板 ───
+        // CreateBox(
+        //     name:   "CorridorCeiling",
+        //     pos:    new Vector3(center.x, corridorWallHeight + corridorFloorThickness / 2f, center.z),
+        //     scaleX: floorSX,
+        //     scaleY: corridorFloorThickness,
+        //     scaleZ: floorSZ,
+        //     mat:    corridorMaterial,
+        //     defaultColor: new Color(0.45f, 0.45f, 0.45f),
+        //     addCollider: true
+        // );
+
+        // ─── 修改：接收生成的直走廊天花板对象并设置图层 ───
+        GameObject corridorCeiling = CreateBox(
+            name:   "CorridorCeiling",
+            pos:    new Vector3(center.x, corridorWallHeight + corridorFloorThickness / 2f, center.z),
+            scaleX: floorSX,
+            scaleY: corridorFloorThickness,
+            scaleZ: floorSZ,
+            mat:    corridorMaterial,
+            defaultColor: new Color(0.45f, 0.45f, 0.45f),
+            addCollider: true
+        );
+        if (corridorCeiling != null)
+        {
+            corridorCeiling.layer = LayerMask.NameToLayer("Ceiling");
+        }
 
         // 侧墙
         float wallCenterY = corridorWallHeight / 2f;
@@ -330,7 +387,7 @@ public class CorridorBuilder : MonoBehaviour
         return absX > absZ ? (dir.x > 0 ? Vector3.right : Vector3.left) : (dir.z > 0 ? Vector3.forward : Vector3.back);
     }
 
-    private void CreateBox(string name, Vector3 pos,
+    private GameObject CreateBox(string name, Vector3 pos,
                            float scaleX, float scaleY, float scaleZ,
                            Material mat, Color defaultColor,
                            bool addCollider)
@@ -354,6 +411,8 @@ public class CorridorBuilder : MonoBehaviour
         }
 
         if (!addCollider) Destroy(go.GetComponent<Collider>());
+
+        return go; // <--- 修改：返回生成的 GameObject 对象
     }
 }
 

@@ -11,6 +11,12 @@ public class GenerateDungeon : MonoBehaviour
     public Vector3 doorRotationOffset = new Vector3(0, -90, 0); // 旋转微调，通常是 (0, 90, 0) 或 (0, -90, 0)
     public float doorWidthMultiplier = 1.0f;               // 新增：门体宽度整体比例缩放（用于消除与墙壁接缝的缝隙）
 
+
+    [Header("天花板生成相关")]
+    public GameObject ceilingPrefab; // 拖入您的 Ceiling 预制体
+    public float ceilingHeight = 4f;  // 天花板高度（通常与墙壁高度 4f 保持一致）
+
+
     // 记录本房间所有已启用的门点位置（世界坐标），用于避开道具生成
     [HideInInspector]
     public List<Vector3> activeDoorPositions = new List<Vector3>();
@@ -37,6 +43,7 @@ public class GenerateDungeon : MonoBehaviour
         CreatePillars();
         CreateFloorTile();
         AddWallJunctionPillars();
+        CreateCeiling(); // <--- 新增：生成天花板
 
         CreateCombinedCollider(_pillarMatrices,         pillarMesh);
         CreateCombinedCollider(_floorMatrices,          floorMesh);
@@ -55,60 +62,6 @@ public class GenerateDungeon : MonoBehaviour
     {
         PlaceProps(isKeyRoom);
     }
-
-    // // 修改 SpawnDoors 方法，允许传入一个需要排除的世界坐标（例如终点的锁门位置）
-    // public void SpawnDoors(GameObject doorPrefab, Vector3 excludePosition = default)
-    // {
-    //     if (doorPrefab == null) return;
-
-    //     foreach (var face in _wallFaces)
-    //     {
-    //         foreach (var matrix in face.matricesB)
-    //         {
-    //             Vector3 pos = matrix.GetPosition();
-    //             Quaternion rot = matrix.rotation;
-
-    //             float wallScaleX = matrix.GetColumn(0).magnitude;
-
-    //             Quaternion finalRot = rot * Quaternion.Euler(doorRotationOffset);
-    //             Vector3 finalPos = pos + (rot * doorPositionOffset);
-
-    //             // ─── 新增排除逻辑：如果这个门的位置距离锁门位置极近，则跳过生成普通交互门 ───
-    //             if (excludePosition != default && Vector3.Distance(finalPos, excludePosition) < 1.5f)
-    //             {
-    //                 Debug.Log($"[GenerateDungeon] 已跳过在 {finalPos} 生成重复的普通门，此处将留给锁门。");
-    //                 continue;
-    //             }
-
-    //             bool isConnected = false;
-    //             foreach (var doorPos in activeDoorPositions)
-    //             {
-    //                 if (Vector3.Distance(finalPos, doorPos) < 1.5f)
-    //                 {
-    //                     isConnected = true;
-    //                     break;
-    //                 }
-    //             }
-
-    //             GameObject doorInstance = Instantiate(doorPrefab, finalPos, finalRot, transform);
-    //             doorInstance.name = isConnected ? "ConnectingDoor" : "WrongDoor";
-
-    //             if (!activeDoorPositions.Contains(finalPos))
-    //             {
-    //                 activeDoorPositions.Add(finalPos);
-    //             }
-
-    //             float finalScale = wallScaleX * doorWidthMultiplier;
-    //             doorInstance.transform.localScale = new Vector3(finalScale, 1f, finalScale);
-
-    //             InteractiveDoor doorScript = doorInstance.GetComponent<InteractiveDoor>();
-    //             if (doorScript == null) 
-    //                 doorScript = doorInstance.AddComponent<InteractiveDoor>();
-
-    //             doorScript.isConnectingDoor = isConnected; 
-    //         }
-    //     }
-    // }
 
     public void SpawnDoors(GameObject doorPrefab)
     {
@@ -398,11 +351,17 @@ public class GenerateDungeon : MonoBehaviour
         float sx = (roomSize.x / cx) / fw;
         float sz = (roomSize.y / cz) / fl;
         Vector3 start = transform.position + new Vector3(-roomSize.x / 2f + fw * sx / 2f, 0, -roomSize.y / 2f + fl * sz / 2f);
+        
+        // ─── 新增：定义一个微小的重叠系数，防止拼接缝隙 ───
+        float overlapFactor = 1.002f; 
+
         for (int x = 0; x < cx; x++)
         for (int z = 0; z < cz; z++)
         {
             Vector3 pos = start + new Vector3(x * fw * sx, 0, z * fl * sz);
-            _floorMatrices.Add(Matrix4x4.TRS(pos, transform.rotation, new Vector3(sx, 1f, sz)));
+            
+            // ─── 修改：将最后的缩放值 sx 和 sz 乘以重叠系数 ───
+            _floorMatrices.Add(Matrix4x4.TRS(pos, transform.rotation, new Vector3(sx * overlapFactor, 1f, sz * overlapFactor)));
         }
     }
 
@@ -456,6 +415,45 @@ public class GenerateDungeon : MonoBehaviour
     }
     #endregion
 
+
+
+    private void CreateCeiling()
+    {
+        if (ceilingPrefab == null) return;
+
+        // 尝试获取天花板预制体的网格渲染器以确定其物理尺寸
+        var r = ceilingPrefab.GetComponentInChildren<Renderer>();
+        float cw = r != null ? r.bounds.size.x : 2f;
+        float cl = r != null ? r.bounds.size.z : 2f;
+
+        int cx = Mathf.Max(1, Mathf.CeilToInt(roomSize.x / cw));
+        int cz = Mathf.Max(1, Mathf.CeilToInt(roomSize.y / cl));
+
+        float sx = (roomSize.x / cx) / cw;
+        float sz = (roomSize.y / cz) / cl;
+
+        // 计算天花板起点世界坐标（Y 坐标偏移为 ceilingHeight）
+        Vector3 start = transform.position + new Vector3(-roomSize.x / 2f + cw * sx / 2f, ceilingHeight, -roomSize.y / 2f + cl * sz / 2f);
+
+        GameObject ceilingParent = new GameObject("CeilingsParent");
+        ceilingParent.transform.SetParent(transform);
+
+        for (int x = 0; x < cx; x++)
+        {
+            for (int z = 0; z < cz; z++)
+            {
+                Vector3 pos = start + new Vector3(x * cw * sx, 0, z * cl * sz);
+                
+                // 实例化天花板，并缩放到自适应大小
+                GameObject go = Instantiate(ceilingPrefab, pos, transform.rotation, ceilingParent.transform);
+                go.transform.localScale = new Vector3(sx, 1f, sz);
+
+                // ─── 新增：设置生成的房间天花板图层为 Ceiling ───
+                go.layer = LayerMask.NameToLayer("Ceiling"); 
+            }
+        }
+    }
+
     #region 碰撞体
     private GameObject _collidersParent;
 
@@ -506,70 +504,6 @@ public class GenerateDungeon : MonoBehaviour
         return spanLength / wallCount;
     }
 
-
-    // void PlaceProps()
-    // {
-    //     if (dungeonProps == null || dungeonProps.Length == 0) return;
-
-    //     _wallThickness = wallMesh.bounds.extents.z;
-    //     float uw = roomSize.x - 2f * _wallThickness;
-    //     float uh = roomSize.y - 2f * _wallThickness;
-    //     float minX = transform.position.x - uw / 2f;
-    //     float maxX = transform.position.x + uw / 2f;
-    //     float minZ = transform.position.z - uh / 2f;
-    //     float maxZ = transform.position.z + uh / 2f;
-
-    //     if (_propsParent == null)
-    //     {
-    //         _propsParent = new GameObject("PropsParent");
-    //         _propsParent.transform.SetParent(transform);
-    //     }
-
-    //     var placedOBBs = new List<OBB>();
-
-    //     foreach (var prop in dungeonProps)
-    //     {
-    //         int count = Random.Range(prop.minCount, prop.maxCount + 1);
-    //         for (int i = 0; i < count; i++)
-    //         {
-    //             if (Random.value > prop.spawnProbability) continue;
-
-    //             Vector3    pos  = Vector3.zero;
-    //             Quaternion rot  = Quaternion.identity;
-    //             Vector3    half = Vector3.zero;
-
-    //             bool ok = prop.positionType switch
-    //             {
-    //                 DungeonProp.PositionType.Wall    => TryFindWallPosition  (prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
-    //                 DungeonProp.PositionType.Corner  => TryFindCornerPosition(prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
-    //                 DungeonProp.PositionType.Middle  => TryFindMiddlePosition(prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
-    //                 DungeonProp.PositionType.Anywhere=> TryFindAnyPosition   (prop.prefab, minX, maxX, minZ, maxZ, out pos, out rot, out half),
-    //                 _ => false
-    //             };
-    //             if (!ok) continue;
-
-    //             // 核心过滤：检查道具是否太靠近任何已经激活的拱门出口
-    //             bool blocksDoor = false;
-    //             foreach (var doorPos in activeDoorPositions)
-    //             {
-    //                 // 如果道具距离门小于 3.2 米，则跳过生成
-    //                 if (Vector3.Distance(pos, doorPos) < 2.5f)
-    //                 {
-    //                     blocksDoor = true;
-    //                     break;
-    //                 }
-    //             }
-    //             if (blocksDoor) continue;
-
-    //             if (prop.randomRotation) rot = Quaternion.Euler(0, Random.Range(0, 360), 0);
-    //             if (!CheckOverlap(pos, half, rot, placedOBBs))
-    //             {
-    //                 Instantiate(prop.prefab, pos + prop.offset, rot).transform.SetParent(_propsParent.transform);
-    //                 placedOBBs.Add(new OBB { center = pos, extents = half, rotation = rot });
-    //             }
-    //         }
-    //     }
-    // }
 
     // 2. 修改 PlaceProps 方法，增加避让逻辑
     void PlaceProps(bool isKeyRoom = false)

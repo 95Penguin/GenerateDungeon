@@ -2,10 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 地牢总控制器 v6
+/// 地牢总控制器 v7 (支持捷径与环路生成版)
 /// 1. 取消了 OpenWallGap 暴力删墙，改为调用房间的 ConvertWallToArchway。
 /// 2. 升级走廊生成调用，将 exitDir 和 enterDir 传入以生成完美对齐的 Z/L 型通道。
 /// 3. 调整道具放置时机为：走廊规划完毕后延迟生成，从而精确避开门点区域。
+/// 4. 增加 AddRandomExtraCorridors 方法，支持生成不封死的环路与捷径。
 /// </summary>
 public class DungeonManager : MonoBehaviour
 {
@@ -20,6 +21,12 @@ public class DungeonManager : MonoBehaviour
 
     [Header("走廊")]
     public CorridorBuilder corridorBuilder;
+
+    [Header("捷径与环路配置")]
+    [Tooltip("生成额外捷径的概率（0~1）。设为 0 代表传统的单条主通路，设为 0.15 代表有 15% 的临近墙面会被打通成捷径")]
+    [Range(0, 1)] public float extraConnectionProbability = 0.15f; 
+    [Tooltip("判定两个房间可以打通捷径的最大物理中心距离（单位：米）")]
+    public float maxShortcutDistance = 35f;
 
     [Header("特殊预制体")]
     public GameObject keyPrefab;
@@ -50,7 +57,7 @@ public class DungeonManager : MonoBehaviour
         Generate();
     }
 
-    
+
     public void Generate()
     {
         // 1. BSP 切割
@@ -75,52 +82,51 @@ public class DungeonManager : MonoBehaviour
             _adjacency.Add(new List<int>());
         }
 
-        // 3. 连接走廊 + 自动在对应墙面“强制替换”出拱门
+        // 3. 连接基础走廊
         ConnectRoomsViaBSP(root);
 
-        // ─── 核心修改：将“寻找起终点”的调用提前到生成门之前 ───
+        // 4. 随机打通邻近墙体，产生捷径与环路 
+        AddRandomExtraCorridors();
+
+        // 5. 将“寻找起终点”的调用提前
         FindStartAndGoal();
 
-        // ─── 此时 _goalRoomIndex 已经确定，可以精准获取锁门位置进行排除了 ───
+        // ─── 核心修改 1：提前计算出钥匙房的索引，以便道具生成时避让 ───
+        _keyRoomIndex = FindMiddleRoom(_startRoomIndex, _goalRoomIndex);
+
+        // 6. 确定锁门位置并排除
         Vector3 lockedDoorPos = Vector3.zero;
         if (_goalRoomIndex >= 0 && _rooms[_goalRoomIndex].activeDoorPositions.Count > 0)
         {
             lockedDoorPos = _rooms[_goalRoomIndex].activeDoorPositions[0];
         }
 
-        // // 4. 在所有的拱门位置填入物理门（传入锁门位置进行排除）
-        // foreach (var room in _rooms)
-        // {
-        //     room.SpawnDoors(interactiveDoorPrefab, lockedDoorPos);
-        // }
-
-        // 4. 让所有房间在所有的拱门位置填入物理门（完全采用普通的完美自然生成，不带任何位置排除参数）
+        // 7. 生成门与碰撞体
         foreach (var room in _rooms)
         {
             room.SpawnDoors(interactiveDoorPrefab);
         }
 
-        // 5. 重建带拱门的房间物理碰撞体
         foreach (var room in _rooms)
             room.RebuildWallColliders();
 
-        // 6. 延迟放置道具
-        foreach (var room in _rooms)
-            room.DelayedPlaceProps();
+        // ─── 核心修改 2：在放置道具时，传入正确的 isKeyRoom 标记 ───
+        for (int i = 0; i < _rooms.Count; i++)
+        {
+            bool isKey = (i == _keyRoomIndex); // 判定当前房间是否是钥匙房
+            _rooms[i].DelayedPlaceProps(isKey); // 传入标记，钥匙房中心 2.5 米内将不生成任何道具
+        }
 
-        // 7. 标记起终点地板颜色
+        // 9. 标记起终点地板颜色
         if (_startRoomIndex >= 0) _rooms[_startRoomIndex].SetFloorOverlay(startRoomMaterial);
         if (_goalRoomIndex  >= 0) _rooms[_goalRoomIndex ].SetFloorOverlay(goalRoomMaterial);
 
-        // 8. 放置特殊道具、锁门与玩家
+        // 10. 放置特殊道具（修改：钥匙房索引已提前计算，这里直接摆放即可）
         PlaceKeyInMiddleRoom();
         PlaceLockedDoor();
         PlaceGoalTrigger();
         SpawnPlayer();
     }
-
-
-    // 请将 DungeonManager.cs 中的 ConnectRoomsViaBSP 方法替换为以下内容：
 
     private void ConnectRoomsViaBSP(BSPNode node)
     {
@@ -195,12 +201,73 @@ public class DungeonManager : MonoBehaviour
             }
         }
 
-        // 4. 构建智能走廊规划（传入动态计算出的宽度，防止侧墙穿插拱门）
+        // 4. 构建智能走廊规划
         corridorBuilder.BuildSmartCorridor(doorL, doorR, exitDir, enterDir, customCorridorWidth, lIdx * 100 + rIdx);
 
         // 5. 登记图的邻接关系
         if (!_adjacency[lIdx].Contains(rIdx)) _adjacency[lIdx].Add(rIdx);
         if (!_adjacency[rIdx].Contains(lIdx)) _adjacency[rIdx].Add(lIdx);
+    }
+
+    /// <summary>
+    /// 新增：随机打通不相邻但物理上靠得很近的隔壁房间，产生环路与捷径
+    /// </summary>
+    private void AddRandomExtraCorridors()
+    {
+        if (extraConnectionProbability <= 0f) return;
+
+        for (int i = 0; i < _rooms.Count; i++)
+        {
+            for (int j = i + 1; j < _rooms.Count; j++)
+            {
+                // 如果在基础 BSP 生成中已经连通了，跳过
+                if (_adjacency[i].Contains(j)) continue;
+
+                // 计算两个房间物理中心点的距离
+                float distance = Vector3.Distance(_rooms[i].transform.position, _rooms[j].transform.position);
+
+                // 如果两个房间挨得很近，说明它们是紧邻的“邻居”
+                if (distance < maxShortcutDistance)
+                {
+                    // 按照概率随机决定是否打通这条捷径
+                    if (Random.value < extraConnectionProbability)
+                    {
+                        GenerateDungeon roomA = _rooms[i];
+                        GenerateDungeon roomB = _rooms[j];
+
+                        Vector3 diff = roomB.transform.position - roomA.transform.position;
+                        GenerateDungeon.WallDirection exitDir;
+                        GenerateDungeon.WallDirection enterDir;
+
+                        if (Mathf.Abs(diff.x) > Mathf.Abs(diff.z))
+                        {
+                            exitDir  = diff.x > 0 ? GenerateDungeon.WallDirection.East : GenerateDungeon.WallDirection.West;
+                            enterDir = diff.x > 0 ? GenerateDungeon.WallDirection.West : GenerateDungeon.WallDirection.East;
+                        }
+                        else
+                        {
+                            exitDir  = diff.z > 0 ? GenerateDungeon.WallDirection.North : GenerateDungeon.WallDirection.South;
+                            enterDir = diff.z > 0 ? GenerateDungeon.WallDirection.South : GenerateDungeon.WallDirection.North;
+                        }
+
+                        float width = roomA.GetWallSegmentWidth(exitDir);
+                        
+                        // 计算门口坐标（会自动调用 ConvertWallToArchway，将门口位置加入 activeDoorPositions 列表）
+                        Vector3 doorA = GetDoorPosition(roomA, exitDir, (exitDir == GenerateDungeon.WallDirection.East || exitDir == GenerateDungeon.WallDirection.West) ? roomA.transform.position.z : roomA.transform.position.x);
+                        Vector3 doorB = GetDoorPosition(roomB, enterDir, (enterDir == GenerateDungeon.WallDirection.East || enterDir == GenerateDungeon.WallDirection.West) ? roomB.transform.position.z : roomB.transform.position.x);
+
+                        // 建造捷径走廊
+                        corridorBuilder.BuildSmartCorridor(doorA, doorB, exitDir, enterDir, width, i * 100 + j);
+
+                        // 在邻接矩阵中登记连通关系，保证路径分析正常
+                        _adjacency[i].Add(j);
+                        _adjacency[j].Add(i);
+
+                        Debug.Log($"[DungeonManager] 随机打通捷径环路：成功连通 Room_{i} 和 Room_{j}。");
+                    }
+                }
+            }
+        }
     }
 
     private Vector3 GetDoorPosition(GenerateDungeon room, GenerateDungeon.WallDirection dir, float targetCoord)
@@ -235,8 +302,6 @@ public class DungeonManager : MonoBehaviour
         return new Vector3(x, 0, z);
     }
 
-    // ── 后续逻辑 ───────────────────────────────────────────
-
     private void FindStartAndGoal()
     {
         if (_rooms.Count == 0) return;
@@ -268,18 +333,31 @@ public class DungeonManager : MonoBehaviour
         return far;
     }
 
+    // private void PlaceKeyInMiddleRoom()
+    // {
+    //     if (keyPrefab == null) return;
+    //     _keyRoomIndex = FindMiddleRoom(_startRoomIndex, _goalRoomIndex);
+    //     if (_keyRoomIndex < 0) return;
+
+    //     var keyGO = Instantiate(keyPrefab,
+    //         _rooms[_keyRoomIndex].transform.position + new Vector3(0, 0.5f, 0),
+    //         Quaternion.identity);
+    //     keyGO.name = "Key";
+    //     if (keyGO.GetComponent<KeyItem>() == null) keyGO.AddComponent<KeyItem>();
+    //     Debug.Log($"[DungeonManager] Key in Room_{_keyRoomIndex}");
+    // }
+
     private void PlaceKeyInMiddleRoom()
     {
-        if (keyPrefab == null) return;
-        _keyRoomIndex = FindMiddleRoom(_startRoomIndex, _goalRoomIndex);
-        if (_keyRoomIndex < 0) return;
+        if (keyPrefab == null || _keyRoomIndex < 0) return;
 
+        // 直接在提前算好的 _keyRoomIndex 房间中心实例化钥匙
         var keyGO = Instantiate(keyPrefab,
             _rooms[_keyRoomIndex].transform.position + new Vector3(0, 0.5f, 0),
             Quaternion.identity);
         keyGO.name = "Key";
         if (keyGO.GetComponent<KeyItem>() == null) keyGO.AddComponent<KeyItem>();
-        Debug.Log($"[DungeonManager] Key in Room_{_keyRoomIndex}");
+        Debug.Log($"[DungeonManager] 成功在避让空旷的 Room_{_keyRoomIndex} 中心放置钥匙。");
     }
 
     private int FindMiddleRoom(int start, int goal)
@@ -302,40 +380,6 @@ public class DungeonManager : MonoBehaviour
         return path.Count < 3 ? -1 : path[Random.Range(1, path.Count - 1)];
     }
 
-
-    // private void PlaceLockedDoor()
-    // {
-    //     if (_goalRoomIndex < 0) return;
-
-    //     GenerateDungeon goalRoom = _rooms[_goalRoomIndex];
-    //     if (goalRoom.activeDoorPositions.Count == 0) return;
-
-    //     // 获取终点门口的物理世界坐标
-    //     Vector3 doorPos = goalRoom.activeDoorPositions[0];
-
-    //     // ─── 核心修改：弃用 Physics 物理重叠检测，改用纯脚本检索，彻底免受物理帧延迟的干扰 ───
-    //     int lockCount = 0;
-        
-    //     // 获取场景中所有的 InteractiveDoor 门组件
-    //     InteractiveDoor[] allDoors = FindObjectsByType<InteractiveDoor>(FindObjectsSortMode.None);
-        
-    //     foreach (var door in allDoors)
-    //     {
-    //         if (door != null)
-    //         {
-    //             // 只要大门到终点门口的距离小于 2.0 米，就将其加锁
-    //             float distance = Vector3.Distance(door.transform.position, doorPos);
-    //             if (distance < 2.0f)
-    //             {
-    //                 door.requiresKeyToOpen = true;
-    //                 lockCount++;
-    //             }
-    //         }
-    //     }
-
-    //     Debug.Log($"[DungeonManager] 成功在终点房门口检索并锁定大门（共标定 {lockCount} 个门板）。");
-    // }
-
     private void PlaceLockedDoor()
     {
         if (_goalRoomIndex < 0) return;
@@ -356,11 +400,9 @@ public class DungeonManager : MonoBehaviour
             if (door != null)
             {
                 float distance = Vector3.Distance(door.transform.position, doorPos);
-                
-                // ─── 新增：在控制台打印每一扇门到终点门口的精确距离，让我们一目了然 ───
                 Debug.Log($"[DungeonManager] 检索到门板: {door.gameObject.name}, 距离终点定位点为: {distance:F2} 米");
 
-                // ─── 核心修改：将判定阈值扩大到 4.0 米，绝对安全地锁住终点房的双扇大门 ───
+                // 将判定阈值扩大到 4.0 米，绝对安全地锁住终点房的双扇大门
                 if (distance < 4.0f)
                 {
                     door.requiresKeyToOpen = true;
